@@ -12,6 +12,7 @@ exports.getEvents = async (req, res) => {
     if (tags) filter.tags = { $in: tags.split(',') };
 
     const events = await Event.find(filter)
+      .populate('image')
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
 
@@ -33,7 +34,7 @@ exports.getEvents = async (req, res) => {
 // @access Public
 exports.getEvent = async (req, res) => {
   try {
-    const event = await Event.findById(req.params.id);
+    const event = await Event.findById(req.params.id).populate('image');
     if (!event) return res.status(404).json({ msg: 'Event not found' });
     res.json(event);
   } catch (err) {
@@ -54,7 +55,8 @@ exports.createEvent = async (req, res) => {
         ? tags.split(',').map(t => t.trim()).filter(Boolean)
         : [];
     const newEvent = await Event.create({ ...rest, tags: tagsArray });
-    res.status(201).json(newEvent);
+    const populatedEvent = await Event.findById(newEvent._id).populate('image');
+    res.status(201).json(populatedEvent);
   } catch (err) {
     res.status(500).json({ msg: 'Server error', error: err.message });
   }
@@ -72,7 +74,7 @@ exports.updateEvent = async (req, res) => {
         ? tags.split(',').map(t => t.trim()).filter(Boolean)
         : undefined;
     const updateData = tagsArray !== undefined ? { ...rest, tags: tagsArray } : rest;
-    const updated = await Event.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    const updated = await Event.findByIdAndUpdate(req.params.id, updateData, { new: true }).populate('image');
     if (!updated) return res.status(404).json({ msg: 'Event not found' });
     res.json(updated);
   } catch (err) {

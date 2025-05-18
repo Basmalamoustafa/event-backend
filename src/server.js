@@ -1,4 +1,3 @@
-// backend/src/server.js
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
@@ -9,40 +8,47 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Serve uploaded images statically
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// MongoDB connection & GridFS init
+const MONGO_URI = process.env.MONGO_URI;
+const conn = mongoose.createConnection(MONGO_URI);
 
-// Import route modules
-const authRoutes = require('./routes/auth');
-const eventRoutes = require('./routes/events');
+let gfs;
+conn.once('open', () => {
+  // initialize stream
+  gfs = new mongoose.mongo.GridFSBucket(conn.db, {
+    bucketName: 'uploads'
+  });
+  console.log('✅ GridFS initialized');
+});
+
+// make gfs available to routes
+app.use((req, res, next) => {
+  req.gfs = gfs;
+  next();
+});
+
+// Routes
+const authRoutes    = require('./routes/auth');
+const eventRoutes   = require('./routes/events');
 const bookingRoutes = require('./routes/bookings');
-const userRoutes = require('./routes/user');
-const uploadRoutes = require('./routes/upload'); // ✅ Add upload routes
+const userRoutes    = require('./routes/user');
+const uploadRoutes  = require('./routes/upload');
 
-// Use routes
-app.use('/api/auth', authRoutes);
-app.use('/api/events', eventRoutes);
-app.use('/api/bookings', bookingRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/upload', uploadRoutes); // ✅ Use upload route
+app.use('/api/auth',    authRoutes);
+app.use('/api/events',  eventRoutes);
+app.use('/api/bookings',bookingRoutes);
+app.use('/api/users',   userRoutes);
+app.use('/api/upload',  uploadRoutes);
 
-// Export app for testing
+// Export for tests
 module.exports = app;
 
-// If not in test environment, connect DB and start server
 if (process.env.NODE_ENV !== 'test') {
-  const PORT = process.env.PORT || 5001;
-  const MONGO_URI = process.env.MONGO_URI;
-
-  mongoose
-    .connect(MONGO_URI)
+  mongoose.connect(MONGO_URI)
     .then(() => {
       console.log('✅ Connected to MongoDB');
-      app.listen(PORT, () =>
-        console.log(`🚀 Server running on http://localhost:${PORT}`)
-      );
+      const PORT = process.env.PORT || 5001;
+      app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
     })
-    .catch((err) => {
-      console.error('❌ MongoDB connection error:', err);
-    });
+    .catch(err => console.error('❌ MongoDB connection error:', err));
 }
